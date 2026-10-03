@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><!-- Spanduk sekali-pakai di layar kiblat. Dulu ini dialog yang langsung
+     menyembul dari onResume, dan dialog yang muncul sebelum penggunanya
+     sempat melihat apa pun hampir pasti ditutup tanpa dibaca. -->
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/spandukKompas"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/colorSecondaryContainer"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="8dp"
+    android:visibility="gone">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/spandukPesan"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Ketepatan arah kiblat dibatasi sensor magnet ponsel, bukan oleh hitungannya. Ketuk untuk penjelasan."
+        android:textColor="?attr/colorOnSecondaryContainer"
+        android:textSize="14sp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/spandukTutup"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tutup" />
+
+</androidx.appcompat.widget.LinearLayoutCompat>

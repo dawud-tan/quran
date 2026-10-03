@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "files=$(jq -r '[.tool_input.file_path?, .tool_response.filePath?, (.tool_response.bashEditDiff.changedFiles[]?)] | .[] | select(type == \"string\" and . != \"\")')\nprintf '%s\\n' \"$files\" | grep -qE '\\.(java|xml)$' && jvm=1\nprintf '%s\\n' \"$files\" | grep -qE '\\.(cpp|cc|cxx|h|hpp)$|(^|/)CMakeLists\\.txt$' && cxx=1\n[ -n \"$jvm$cxx\" ] || exit 0\ncd \"$CLAUDE_PROJECT_DIR\" || exit 0\ntasks=\"\"\n# Native first: libnada_t3.so has no Java to typecheck against, and a broken\n# .so is a runtime crash rather than a compile error. All four ABIs, because\n# armeabi-v7a is 32-bit and catches size_t/int64_t mixups arm64 lets through.\n[ -n \"$cxx\" ] && tasks=\"$tasks :app:buildCMakeDebug\"\n[ -n \"$jvm\" ] && tasks=\"$tasks :app:compileDebugJavaWithJavac\"\nout=$(./gradlew --console=plain $tasks 2>&1) && exit 0\ndiag=$(printf '%s\\n' \"$out\" | grep -E -A 3 '\\.(java|xml):[0-9]+: error:|\\.(cpp|cc|cxx|h|hpp):[0-9]+:[0-9]+: (error|fatal error):|^ *CMake Error' | head -60)\n[ -n \"$diag\" ] || diag=$(printf '%s\\n' \"$out\" | sed -n '/^\\* What went wrong:/,/^\\* Try:/p' | head -30)\nprintf 'build FAILED (%s):\\n%s\\n' \"${tasks# }\" \"$diag\" >&2\nexit 2",
+            "timeout": 600,
+            "statusMessage": "Compiling Java + native..."
+          }
+        ]
+      }
+    ]
+  }
+}

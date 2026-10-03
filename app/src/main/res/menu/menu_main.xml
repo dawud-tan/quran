@@ -1,0 +1,49 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.quran.AktivitasUtama">
+
+    <item
+        android:id="@+id/surat"
+        android:checked="true"
+        android:orderInCategory="100"
+        android:title="Daftar Surat"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/juz"
+        android:orderInCategory="200"
+        android:title="Daftar Juz"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/kiblat"
+        android:orderInCategory="300"
+        android:title="Arah Kiblat"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/terbit"
+        android:orderInCategory="300"
+        android:title="Arah Terbit"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/tenggelam"
+        android:orderInCategory="300"
+        android:title="Arah Tenggelam"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/pengaturan_adzan"
+        android:orderInCategory="400"
+        android:title="Pengaturan Adzan"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/ketepatan_kompas"
+        android:orderInCategory="500"
+        android:title="Ketepatan Kompas"
+        app:showAsAction="never" />
+
+</menu>

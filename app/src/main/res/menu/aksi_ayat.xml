@@ -1,0 +1,17 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.quran.ui.ayat.FragmenAyat">
+
+    <item
+        android:id="@+id/terjemahan"
+        android:checked="true"
+        android:orderInCategory="100"
+        android:title="Terjemahan"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/terakhirDibaca"
+        android:orderInCategory="200"
+        android:title="Tandai terakhir dibaca"
+        app:showAsAction="never" />
+</menu>

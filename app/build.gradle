@@ -1,0 +1,86 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+android {
+    namespace = 'com.quran.kiblat.salat'
+    compileSdk {
+        version = release(37) {
+            it.minorApiLevel = 2
+        }
+    }
+    buildToolsVersion = '37.0.0'
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments = ["-DANDROID_STL=c++_shared"]
+            }
+        }
+        applicationId = "com.quran.kiblat.salat"
+        minSdk = 29
+        targetSdk = 37
+        versionCode = 30
+        versionName = "1.0.30"
+    }
+    ndkVersion = "30.0.16248370"
+    externalNativeBuild {
+        cmake {
+            version = "4.1.2"
+            path = "src/main/cpp/CMakeLists.txt"
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled = false
+            shrinkResources = false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        coreLibraryDesugaringEnabled = true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
+        // Wajib: Oboe dikirim sebagai paket prefab di dalam AAR-nya. Tanpa ini
+        // find_package(oboe REQUIRED CONFIG) di src/main/cpp/CMakeLists.txt
+        // gagal waktu konfigurasi CMake.
+        prefab = true
+    }
+    allprojects {
+        tasks.withType(JavaCompile).tap {
+            configureEach {
+                options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+            }
+        }
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring libs.desugar.jdk.libs
+    implementation libs.appcompat
+    implementation libs.constraintlayout
+    implementation libs.coordinatorlayout
+    implementation libs.material
+    implementation libs.media3.exoplayer
+    implementation libs.media3.session
+    implementation libs.navigation.fragment
+    implementation libs.navigation.ui
+    implementation libs.recyclerview
+    implementation libs.work.runtime
+    implementation libs.oboe
+}

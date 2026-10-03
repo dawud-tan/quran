@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/navigasi"
+    app:startDestination="@+id/nav_ayat">
+
+    <fragment
+        android:id="@+id/nav_ayat"
+        android:name="com.quran.kiblat.salat.ui.ayat.FragmenAyat"
+        android:label="Ayat Quran"
+        tools:layout="@layout/fragmen_ayat" />
+
+    <fragment
+        android:id="@+id/nav_kiblat"
+        android:name="com.quran.kiblat.salat.ui.kiblat.FragmenKiblat"
+        android:label="Arah Kiblat"
+        tools:layout="@layout/fragmen_kiblat" />
+
+    <fragment
+        android:id="@+id/nav_terbit"
+        android:name="com.quran.kiblat.salat.ui.terbit.FragmenTerbit"
+        android:label="Arah Terbit"
+        tools:layout="@layout/fragmen_terbit" />
+
+    <fragment
+        android:id="@+id/nav_tenggelam"
+        android:name="com.quran.kiblat.salat.ui.tenggelam.FragmenTenggelam"
+        android:label="Arah Tenggelam"
+        tools:layout="@layout/fragmen_tenggelam" />
+
+</navigation>

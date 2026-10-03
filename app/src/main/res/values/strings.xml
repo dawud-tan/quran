@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Quran</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="pesan_gps">Mohon aktifkan GPS donk</string>
+    <string name="pesan_gps_back">Mohon aktifkan GPS untuk back donk</string>
+    <string name="menu_home">Home</string>
+</resources>
