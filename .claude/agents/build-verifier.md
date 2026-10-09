@@ -36,8 +36,13 @@ installed `gradle`. The Android SDK path comes from `local.properties`, which is
    Javac errors look like `/abs/path/File.java:123: error: cannot find symbol`, followed by the
    offending source line, a caret, and `symbol:`/`location:` hints. Quote those lines — not the
    generic `Execution failed for task` wrapper printed below them, which carries no detail.
-   The build prints 3 pre-existing `warning: [deprecation] getDefaultDisplay()` lines, one per
-   compass fragment. That is the existing backlog, not a regression — never report it.
+   The Java build has **zero** javac warnings. `app/build.gradle` passes `-Xlint:unchecked
+   -Xlint:deprecation`, and the one deliberate deprecated call, `getDefaultDisplay()` (API 29
+   only, in the three compass fragments), has `@SuppressWarnings("deprecation")` on its
+   `Display` declaration. So every `/abs/path/File.java:123: warning:` line is new: report it
+   and quote it. If one names `getDefaultDisplay()`, the annotation was removed or a new
+   unguarded call was added. Javac only warns about files it actually recompiles. A task that
+   is up to date prints nothing, so no warnings is not evidence either way.
 
 3. `./gradlew :app:assembleDebug --console=plain`
    Produces `app/build/outputs/apk/debug/app-debug.apk`. Debug sets `minifyEnabled false`, so
@@ -230,7 +235,14 @@ To install when a device is attached: `./gradlew :app:installDebug`
 ## Environment notes
 
 - Gradle 9.7.1 with the wrapper; Java 17 toolchain; `compileSdk`/`targetSdk` 37, `minSdk` 29.
-- The build suggests enabling the configuration cache. It is **not** enabled — do not report
-  that suggestion as a problem, and do not enable it as part of a verification run.
+- The configuration cache **is** enabled (`org.gradle.configuration-cache=true` in
+  `gradle.properties`). `Reusing configuration cache.` and `Configuration cache entry
+  stored.`/`reused.` are normal, not findings. A change to any build script invalidates the
+  entry by itself, so there is no need to clean. Do not pass `--no-configuration-cache` in a
+  verification run. The real build runs with the cache, so a build-script change that breaks
+  compatibility with it has to fail here too. Gradle fails the build on configuration cache
+  problems and prints a link to an HTML report. Report that like any other failure.
 - `org.gradle.warning.mode=all` is set, so Gradle prints deprecation notices freely. Those are
-  build-script noise unless a task actually fails.
+  build-script noise unless a task actually fails. This covers only Gradle's own notices about
+  the build scripts and plugins, not javac's `warning: [deprecation]` lines, which step 2 says
+  to report.

@@ -130,12 +130,10 @@ public class FragmenTerbit extends Fragment {
                     m_NormNorthVector[2] = North_z / norm_North;
 
                     // take account of screen rotation away from its natural rotation
-                    Display display = null;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-                        display = requireContext().getDisplay();
-                    else {
-                        display = requireActivity().getWindowManager().getDefaultDisplay();
-                    }
+                    @SuppressWarnings("deprecation") // getDefaultDisplay() hanya untuk API 29; >= 30 pakai getDisplay()
+                    Display display = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            ? requireContext().getDisplay()
+                            : requireActivity().getWindowManager().getDefaultDisplay();
                     int rotation = display.getRotation();
                     float screen_adjustment = switch (rotation) {
                         case Surface.ROTATION_0 -> 0;

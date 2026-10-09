@@ -8,6 +8,10 @@ java {
     }
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.addAll(["-Xlint:unchecked", "-Xlint:deprecation"])
+}
+
 android {
     namespace = 'com.quran.kiblat.salat'
     compileSdk {
@@ -60,13 +64,6 @@ android {
         // find_package(oboe REQUIRED CONFIG) di src/main/cpp/CMakeLists.txt
         // gagal waktu konfigurasi CMake.
         prefab = true
-    }
-    allprojects {
-        tasks.withType(JavaCompile).tap {
-            configureEach {
-                options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-            }
-        }
     }
 }
 

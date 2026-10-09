@@ -332,8 +332,14 @@ denied — i.e. nothing would ring at all.
 - `Util` holds a static `ExecutorService` and `Handler` for the whole process.
 - `spa.pressure = 1000` / `temperature = 27.7` are hardcoded; they only affect the
   zenith/azimuth path, not sunrise/sunset.
-- The compass fragments call the deprecated `getDefaultDisplay()` below API 30 — the three
-  deprecation warnings in every build come from there, one per fragment.
+- The compass fragments still call the deprecated `getDefaultDisplay()` below API 30 (API 29
+  only, given `minSdk`), with `@SuppressWarnings("deprecation")` on that one `Display`
+  declaration. javac warns on any call to a `@Deprecated` method whether or not an
+  `SDK_INT` check guards it, so the annotation is the only way to silence it; keep it on the
+  declaration, not the method. `app/build.gradle` passes `-Xlint:unchecked -Xlint:deprecation`
+  and the Java build is otherwise warning-free, so any new warning is a real finding. Check it
+  with `./gradlew :app:compileDebugJavaWithJavac --rerun`, because a task that is up to date
+  prints nothing.
 - UI strings are inline Indonesian by choice, so `HardcodedText` and `SetTextI18n` warnings are
   expected for any new layout or `setText`. Follow the convention rather than fighting it.
 - The MediaStyle notification's transport controls only mean anything for the subuh tarhim,
