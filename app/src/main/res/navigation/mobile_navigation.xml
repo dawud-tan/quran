@@ -17,16 +17,27 @@
         android:label="Arah Kiblat"
         tools:layout="@layout/fragmen_kiblat" />
 
+    <!-- Terbit dan tenggelam satu kelas yang sama; bedanya hanya argumen "terbit". -->
     <fragment
         android:id="@+id/nav_terbit"
-        android:name="com.quran.kiblat.salat.ui.terbit.FragmenTerbit"
+        android:name="com.quran.kiblat.salat.ui.matahari.FragmenArahMatahari"
         android:label="Arah Terbit"
-        tools:layout="@layout/fragmen_terbit" />
+        tools:layout="@layout/fragmen_arah_matahari">
+        <argument
+            android:name="terbit"
+            android:defaultValue="true"
+            app:argType="boolean" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_tenggelam"
-        android:name="com.quran.kiblat.salat.ui.tenggelam.FragmenTenggelam"
+        android:name="com.quran.kiblat.salat.ui.matahari.FragmenArahMatahari"
         android:label="Arah Tenggelam"
-        tools:layout="@layout/fragmen_tenggelam" />
+        tools:layout="@layout/fragmen_arah_matahari">
+        <argument
+            android:name="terbit"
+            android:defaultValue="false"
+            app:argType="boolean" />
+    </fragment>
 
 </navigation>

@@ -13,12 +13,12 @@
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_quran_kiblat_salat_NadaT3_buat(JNIEnv * /*env*/, jclass /*kelas*/) {
+Java_com_quran_kiblat_salat_alarm_NadaT3_buat(JNIEnv * /*env*/, jclass /*kelas*/) {
     return reinterpret_cast<jlong>(new NadaT3());
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_quran_kiblat_salat_NadaT3_mulai(JNIEnv * /*env*/, jclass /*kelas*/,
+Java_com_quran_kiblat_salat_alarm_NadaT3_mulai(JNIEnv * /*env*/, jclass /*kelas*/,
                                          jlong penunjuk, jint putaran) {
     if (penunjuk == 0) {
         return 0;
@@ -27,7 +27,7 @@ Java_com_quran_kiblat_salat_NadaT3_mulai(JNIEnv * /*env*/, jclass /*kelas*/,
 }
 
 JNIEXPORT void JNICALL
-Java_com_quran_kiblat_salat_NadaT3_berhenti(JNIEnv * /*env*/, jclass /*kelas*/,
+Java_com_quran_kiblat_salat_alarm_NadaT3_berhenti(JNIEnv * /*env*/, jclass /*kelas*/,
                                             jlong penunjuk) {
     if (penunjuk != 0) {
         reinterpret_cast<NadaT3 *>(penunjuk)->berhenti();
@@ -35,7 +35,7 @@ Java_com_quran_kiblat_salat_NadaT3_berhenti(JNIEnv * /*env*/, jclass /*kelas*/,
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_quran_kiblat_salat_NadaT3_sedangMain(JNIEnv * /*env*/, jclass /*kelas*/,
+Java_com_quran_kiblat_salat_alarm_NadaT3_sedangMain(JNIEnv * /*env*/, jclass /*kelas*/,
                                               jlong penunjuk) {
     if (penunjuk == 0) {
         return JNI_FALSE;
@@ -44,7 +44,7 @@ Java_com_quran_kiblat_salat_NadaT3_sedangMain(JNIEnv * /*env*/, jclass /*kelas*/
 }
 
 JNIEXPORT void JNICALL
-Java_com_quran_kiblat_salat_NadaT3_hapus(JNIEnv * /*env*/, jclass /*kelas*/,
+Java_com_quran_kiblat_salat_alarm_NadaT3_hapus(JNIEnv * /*env*/, jclass /*kelas*/,
                                          jlong penunjuk) {
     // Penghancurnya memanggil berhenti(), yang menunggu panggilbalik yang
     // sedang berjalan selesai sebelum alirannya ditutup.

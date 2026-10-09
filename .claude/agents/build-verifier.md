@@ -38,7 +38,7 @@ installed `gradle`. The Android SDK path comes from `local.properties`, which is
    generic `Execution failed for task` wrapper printed below them, which carries no detail.
    The Java build has **zero** javac warnings. `app/build.gradle` passes `-Xlint:unchecked
    -Xlint:deprecation`, and the one deliberate deprecated call, `getDefaultDisplay()` (API 29
-   only, in the three compass fragments), has `@SuppressWarnings("deprecation")` on its
+   only, in `ui/kompas/Kompas.java`), has `@SuppressWarnings("deprecation")` on its
    `Display` declaration. So every `/abs/path/File.java:123: warning:` line is new: report it
    and quote it. If one names `getDefaultDisplay()`, the annotation was removed or a new
    unguarded call was added. Javac only warns about files it actually recompiles. A task that
@@ -61,7 +61,7 @@ installed `gradle`. The Android SDK path comes from `local.properties`, which is
 5. `./gradlew :app:lintDebug --console=plain`
    Full Android Lint. Machine-readable report at
    `app/build/reports/lint-results-debug.sarif` (HTML next to it).
-   There are currently **zero errors and 123 warnings**. Lint does not look at C++ at all.
+   There are currently **zero errors and 107 warnings**. Lint does not look at C++ at all.
    The backlog is dominated by
    `HardcodedText` (this app deliberately keeps its Indonesian UI strings inline),
    `UnusedResources`, `IconDuplicates` and `SetTextI18n`. The `GradleDependency` notices drift
@@ -91,7 +91,8 @@ Stop at the first failing step and report it — the later steps depend on it.
 ## There is no test suite
 
 Only `app/src/main` exists: no `src/test`, no `src/androidTest`. Never report tests as passing
-or failing. If asked for test results, say plainly that the repo has none.
+or failing. If asked for test results, say plainly that the repo has none. The one thing that
+does check numbers is `alat/UjiHisab.java` (below) — report it by name, not as "tests".
 
 ## The native build
 
@@ -172,13 +173,26 @@ Note the harness renders **one** cycle. The service plays the non-subuh tone wit
 `NadaT3.TANPA_BATAS`, which loops until the user stops it, so there is no total duration to
 check for that case — only the cycle.
 
-## Verifying the bayangan-kiblat scan without a device
+## Verifying the astronomy without a device
 
-`ui/util/BayanganKiblat.java` has no Android dependencies either, so it compiles with plain
-`javac` alongside `SolarPosition` and `Geodesic` (strip the `package` lines as usual). The check
-that actually catches regressions is to re-derive the sun's azimuth at each instant the scan
-returns and confirm it lands on the qibla azimuth or its reciprocal. Reference values for
-Jakarta (-6.2088, 106.8456, qibla 295.0247 deg) over 2026:
+Everything under `app/src/main/java/com/quran/kiblat/salat/hisab/` (SPA, `PrayTime`, qibla,
+sunrise/sunset azimuth, bayangan kiblat, magnetic declination, weton) has **no Android
+dependencies**, package lines included, so it compiles as-is. `alat/UjiHisab.java` is a
+self-check over it with reference numbers built in. Run it whenever a change touches anything in
+`hisab/` or `MasukanSpa`'s constants, and quote its output:
+
+```bash
+javac -d build/uji-hisab app/src/main/java/com/quran/kiblat/salat/hisab/*.java alat/UjiHisab.java
+java -cp build/uji-hisab UjiHisab
+```
+
+It prints one `ok`/`GAGAL` line per check and exits 1 if any fails (about 5 s; the full-year
+bayangan scan dominates). A compile error here that mentions `android` or `androidx` means
+someone imported Android into `hisab`, which is itself the regression.
+
+For a change it does not cover, write a small `main` next to it in the same way (compile with
+`-d` against the `hisab` sources) and compare before/after. The bayangan reference values, for
+Jakarta (-6.2088, 106.8456, qibla 295.0247 deg) over 2026, which `UjiHisab` also checks:
 
 | property | expected |
 | --- | --- |
@@ -191,26 +205,17 @@ Jakarta (-6.2088, 106.8456, qibla 295.0247 deg) over 2026:
 If the four Rashdul Qibla dates stop appearing, or days-with-a-moment collapses toward 2, the
 crossing detection is broken — most likely the 180-degree wrap guard in `selisihAzimut`.
 
-## Verifying the astronomy without a device
-
-`ui/util/PrayTime.java` and `ui/util/SolarPosition.java` have **no Android dependencies** apart
-from one `androidx.annotation.NonNull` on `SPAData.clone()`. Copy them to a scratch directory,
-delete that import and annotation, and they compile and run under plain `javac`/`java`. This is
-the only practical way to check a prayer-time change numerically — write a small `main` that
-prints the 7-slot result array for known coordinates and compare before/after. Do this whenever
-a change touches the solar or prayer-time maths, and quote the actual numbers.
-
 ## What a build cannot verify
 
 The alarm chain is the heart of this app and **no Gradle task exercises it**: exact alarms,
 `setAlarmClock` scheduling, the two foreground services, full-screen intents over the lock
 screen, DND bypass, boot re-arming, and the per-prayer toggles in `PengaturanAdzan`. If a change
-touches `Util.cekJadwal`, `Servis10Menit`, `ServisAdzan`, the `Siaran*` receivers, or
-`LocationWorker`, state explicitly that it is unverified beyond compilation and name what a
+touches `alarm/PenjadwalAdzan`, `Servis10Menit`, `ServisAdzan`, `PembantuServis`, the `Siaran*`
+receivers, or `AktivitasDering`, state explicitly that it is unverified beyond compilation and name what a
 human has to exercise on device — including muting a prayer whose alarm is already pending, and
 muting all five.
 
-Reverse geocoding (`Util.cariAlamat` → Nominatim) also needs a real network, and GPS altitude
+Reverse geocoding (`lokasi/Alamat.cari` → Nominatim) also needs a real network, and GPS altitude
 needs a real fix; both feed the prayer-time result.
 
 Nor can it verify **anything about the tone actually reaching a speaker**. The offline harness
@@ -220,7 +225,7 @@ and so it is not silenced along with media), whether a low-latency exclusive str
 or whether it underruns on a device waking out of Doze. Say so explicitly when the native code or
 `Servis10Menit` changes, and name what a human has to hear: a non-subuh prayer ringing
 **indefinitely** until it is stopped, subuh handing over from the tone to the tarhim and then
-re-arming when the tarhim ends, and all three ways out — the full-screen `RingActivity` button,
+re-arming when the tarhim ends, and all three ways out — the full-screen `AktivitasDering` button,
 the notification's "Matikan" action, and the notification swipe — each of which must also put
 the **alarm volume back** where it was (on Android 17 that only works while the service is still
 in the foreground).

@@ -19,7 +19,7 @@
             android:textAppearance="?attr/textAppearanceSubtitle2"
             android:textColor="?android:textColorPrimary" />
 
-        <!-- kotak centang diisi saat jalan dari Util.namaAdzan(), biar tidak ada daftar ganda -->
+        <!-- kotak centang diisi saat jalan dari JadwalSalat.namaAdzan(), biar tidak ada daftar ganda -->
         <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/daftar_adzan"
             android:layout_width="match_parent"
