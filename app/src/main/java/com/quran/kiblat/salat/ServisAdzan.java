@@ -5,7 +5,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ContentResolver;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.content.res.Resources;
@@ -13,7 +12,6 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
@@ -27,17 +25,10 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaStyleNotificationHelper;
-import androidx.work.BackoffPolicy;
-import androidx.work.Data;
-import androidx.work.ExistingWorkPolicy;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.OutOfQuotaPolicy;
-import androidx.work.WorkManager;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 //kasus, locationManager dipause karena pakai BroadcastReceiver.
 public class ServisAdzan extends Service {
@@ -140,9 +131,6 @@ public class ServisAdzan extends Service {
             builder.setFullScreenIntent(fullScreenPendingIntent, true);
         }
 
-        exoPlayer.setMediaItem(MediaItem.fromUri(soundUri));
-        exoPlayer.prepare();
-
         builder.setStyle(new MediaStyleNotificationHelper.MediaStyle(mediaSession));
 
         Intent dismissIntent = new Intent(this, SiaranDismissAdzan.class);
@@ -153,33 +141,24 @@ public class ServisAdzan extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         builder.setDeleteIntent(dpi);
-        //perlu panggil startForeground
-        ServiceCompat.startForeground(this, 1, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        // Cukup mediaPlayback: tipe location tidak boleh dimulai dari latar
+        // belakang tanpa ACCESS_BACKGROUND_LOCATION sejak Android 14, dan
+        // lokasinya toh cuma dibaca dari tembolok. Lihat Servis10Menit.
+        ServiceCompat.startForeground(this, 1, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+
+        // Baru diputar sesudah servisnya di latar depan: mulai Android 17
+        // pemutaran dari latar belakang tanpa servis latar depan dibisukan.
+        exoPlayer.setMediaItem(MediaItem.fromUri(soundUri));
+        exoPlayer.prepare();
         return START_NOT_STICKY;
     }
 
+    /**
+     * Menutup servis. Jadwal berikutnya dihitung ulang di onDestroy, yang
+     * dilewati semua jalan keluar — termasuk penghentian dari RingActivity dan
+     * dari notifikasi.
+     */
     private void panggilAdzan() {
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ServisAdzan::onStartCommand");
-        wakeLock.acquire(600000);
-        Data.Builder builder = new Data.Builder();
-        builder.putBoolean("fromBooting", fromBooting);
-        OneTimeWorkRequest workRequest =
-                new OneTimeWorkRequest.Builder(LocationWorker.class)
-                        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                        .setBackoffCriteria(
-                                BackoffPolicy.LINEAR,
-                                OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
-                                TimeUnit.MILLISECONDS)
-                        .setInputData(builder.build())
-                        .build();
-
-        WorkManager.getInstance(getApplicationContext())
-                .enqueueUniqueWork("ServisAdzanOnStartCommand", ExistingWorkPolicy.REPLACE, workRequest);
-
-        if (wakeLock.isHeld()) {
-            wakeLock.release();
-        }
         stopSelf();
     }
 
@@ -196,28 +175,6 @@ public class ServisAdzan extends Service {
                 || player.getMediaItemCount() == 0
                 || player.getPlaybackState() == Player.STATE_ENDED) {
 
-            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ServisAdzan::onTaskRemoved");
-
-            wakeLock.acquire(600000);
-            Data.Builder builder = new Data.Builder();
-            builder.putBoolean("fromBooting", fromBooting);
-            OneTimeWorkRequest workRequest =
-                    new OneTimeWorkRequest.Builder(LocationWorker.class)
-                            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                            .setBackoffCriteria(
-                                    BackoffPolicy.LINEAR,
-                                    OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
-                                    TimeUnit.MILLISECONDS)
-                            .setInputData(builder.build())
-                            .build();
-
-            WorkManager.getInstance(getApplicationContext())
-                    .enqueueUniqueWork("ServisAdzanOnTaskRemoved", ExistingWorkPolicy.REPLACE, workRequest);
-            if (wakeLock.isHeld()) {
-                wakeLock.release();
-            }
-
             super.onTaskRemoved(rootIntent);
             stopSelf();
         }
@@ -225,28 +182,11 @@ public class ServisAdzan extends Service {
 
     @Override
     public void onDestroy() {
-
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ServisAdzan::onTaskRemoved");
-
-        wakeLock.acquire(600000);
-        Data.Builder builder = new Data.Builder();
-        builder.putBoolean("fromBooting", fromBooting);
-        OneTimeWorkRequest workRequest =
-                new OneTimeWorkRequest.Builder(LocationWorker.class)
-                        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                        .setBackoffCriteria(
-                                BackoffPolicy.LINEAR,
-                                OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
-                                TimeUnit.MILLISECONDS)
-                        .setInputData(builder.build())
-                        .build();
-
-        WorkManager.getInstance(getApplicationContext())
-                .enqueueUniqueWork("ServisAdzanOnTaskRemoved", ExistingWorkPolicy.REPLACE, workRequest);
-        if (wakeLock.isHeld()) {
-            wakeLock.release();
-        }
+        // Dulu lewat LocationWorker. Sekarang lokasinya cuma dibaca dari
+        // tembolok, jadi selesai seketika di sini; WorkManager hanya menambah
+        // jeda, dan di Android 10-11 pekerjaan expedited tanpa
+        // getForegroundInfo() bisa mogok.
+        Util.segarkanJadwal(this, true, fromBooting);
 
         if (mediaSession != null) {
             mediaSession.getPlayer().release();

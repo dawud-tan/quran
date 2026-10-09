@@ -56,12 +56,15 @@ installed `gradle`. The Android SDK path comes from `local.properties`, which is
 5. `./gradlew :app:lintDebug --console=plain`
    Full Android Lint. Machine-readable report at
    `app/build/reports/lint-results-debug.sarif` (HTML next to it).
-   There are currently **zero errors and 120 warnings**. Lint does not look at C++ at all.
+   There are currently **zero errors and 123 warnings**. Lint does not look at C++ at all.
    The backlog is dominated by
    `HardcodedText` (this app deliberately keeps its Indonesian UI strings inline),
-   `UnusedResources`, `IconDuplicates`, `SetTextI18n`, and four `BatteryLife` hits from the
-   battery-optimisation prompts in `AktivitasUtama`. Report only findings that are **new**
-   relative to that baseline, and report every `error`-level finding.
+   `UnusedResources`, `IconDuplicates` and `SetTextI18n`. The `GradleDependency` notices drift
+   whenever a library publishes a release, so the total can change with no code change.
+   There are no `BatteryLife` hits any more — a new one means someone re-added
+   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, which CLAUDE.md says not to do; report it.
+   Report only findings that are **new** relative to that baseline, and report every
+   `error`-level finding.
    The cheap way to tell new from backlog is to read the SARIF and filter by file rather than
    eyeball the count:
 
@@ -213,7 +216,9 @@ or whether it underruns on a device waking out of Doze. Say so explicitly when t
 `Servis10Menit` changes, and name what a human has to hear: a non-subuh prayer ringing
 **indefinitely** until it is stopped, subuh handing over from the tone to the tarhim and then
 re-arming when the tarhim ends, and all three ways out — the full-screen `RingActivity` button,
-the notification's "Matikan" action, and the notification swipe.
+the notification's "Matikan" action, and the notification swipe — each of which must also put
+the **alarm volume back** where it was (on Android 17 that only works while the service is still
+in the foreground).
 
 Location is `getLastKnownLocation` only — never a fresh GPS fix — because prayer times are
 almost insensitive to position (1 km moves nothing; see the `PrayTime` harness). If someone

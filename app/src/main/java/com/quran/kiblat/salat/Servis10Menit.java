@@ -1,6 +1,5 @@
 package com.quran.kiblat.salat;
 
-import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -8,26 +7,20 @@ import android.app.Service;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.content.res.Resources;
 import android.graphics.BitmapFactory;
-import android.location.Location;
-import android.location.LocationManager;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
-import androidx.core.content.ContextCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
@@ -39,7 +32,6 @@ import androidx.media3.session.MediaStyleNotificationHelper;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Objects;
 
 //kasus, locationManager dipause karena pakai BroadcastReceiver.
 public class Servis10Menit extends Service {
@@ -49,6 +41,16 @@ public class Servis10Menit extends Service {
      * dari penyangga aliran dulu.
      */
     private static final long MARGIN_HABIS = 250L;
+    /**
+     * Permintaan mematikan nada dari luar servis: tombol RingActivity, aksi
+     * "Matikan" di notifikasi, dan notifikasi yang digeser. Lihat {@link #matikan}.
+     */
+    private static final String AKSI_MATIKAN = BuildConfig.APPLICATION_ID + ".MATIKAN_10_MENIT";
+    /**
+     * Batas nada kalau notifikasinya tidak tampil: 45 putaran x 4 detik =
+     * 3 menit, lama nada sebelum ia dibuat berbunyi terus sampai dimatikan.
+     */
+    private static final int PUTARAN_TANPA_NOTIFIKASI = 45;
 
     private final long[] DEFAULT_VIBRATE_PATTERN = {0, 1000, 200, 1000};
     private final Handler penjadwal = new Handler(Looper.getMainLooper());
@@ -57,12 +59,32 @@ public class Servis10Menit extends Service {
     private NadaT3 nada;
     private boolean fromBooting;
     private String nama, waktu, lokasitks;
-    private int currentVolume;
+    private int volumeSebelumnya;
+    private boolean volumeDinaikkan;
     private AudioManager audioManager;
+
+    /**
+     * Mematikan nada lewat servisnya sendiri, bukan stopService.
+     * <p>
+     * Volume alarm harus dikembalikan selagi servisnya masih di latar depan.
+     * Mulai Android 17, setStreamVolume dari aplikasi yang tidak punya layar
+     * terlihat maupun servis latar depan diabaikan diam-diam — dan di onDestroy
+     * servisnya sudah turun dari latar depan, jadi volumenya akan tertinggal
+     * di maksimum.
+     */
+    public static void matikan(Context context) {
+        try {
+            context.startService(new Intent(context, Servis10Menit.class).setAction(AKSI_MATIKAN));
+        } catch (IllegalStateException ex) {
+            // servisnya sudah tidak jalan dan aplikasi di latar: tidak ada yang perlu dimatikan
+            context.stopService(new Intent(context, Servis10Menit.class));
+        }
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
                 .setUsage(C.USAGE_ALARM)
@@ -90,6 +112,11 @@ public class Servis10Menit extends Service {
     @OptIn(markerClass = UnstableApi.class)
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (AKSI_MATIKAN.equals(intent.getAction())) {
+            panggil10Menit();
+            return START_NOT_STICKY;
+        }
+
         nama = intent.getStringExtra("nama");
         waktu = intent.getStringExtra("waktu");
         lokasitks = intent.getStringExtra("lokasi");
@@ -97,8 +124,6 @@ public class Servis10Menit extends Service {
         if (nama == null) nama = "";
         if (waktu == null) waktu = "";
         if (lokasitks == null) lokasitks = "";
-
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         Uri subuhUri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + BuildConfig.APPLICATION_ID + "/" + R.raw.tarhim);
 
@@ -161,10 +186,6 @@ public class Servis10Menit extends Service {
             builder.setFullScreenIntent(fullScreenPendingIntent, true);
         }
 
-        int maks = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-        currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
-        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maks, 0);
-
         // setShowActionsInCompactView(0) menaruh "Matikan" di tampilan ringkas
         // juga, bukan cuma waktu notifikasinya dibentangkan — alarm yang tidak
         // berhenti sendiri harus bisa dimatikan tanpa dibentangkan dulu.
@@ -186,19 +207,31 @@ public class Servis10Menit extends Service {
         // sekarang: nadanya tidak berhenti sendiri lagi.
         builder.addAction(R.drawable.ic_matikan, "Matikan", dpi);
 
-        ServiceCompat.startForeground(this, 1, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        // Cukup mediaPlayback. Tipe location dulu ikut dipasang, padahal sejak
+        // Android 14 servis bertipe location tidak boleh dimulai dari latar
+        // belakang tanpa ACCESS_BACKGROUND_LOCATION — alarm ini selalu dimulai
+        // dari latar, jadi siapa pun yang tidak memberi "izinkan sepanjang
+        // waktu" kena SecurityException tepat saat adzan. Lokasinya sendiri
+        // cuma getLastKnownLocation, yang tidak butuh tipe apa pun.
+        ServiceCompat.startForeground(this, 1, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
 
-        // Sesudah startForeground, tidak sebelumnya: sejak Android 10 lokasi
-        // hanya boleh diakses oleh servis yang sudah benar-benar berada di
-        // latar depan dengan tipe location, dan segarkanJadwal() di bawah
-        // meminta pembaruan GPS.
-        //
+        // Sesudah startForeground, tidak sebelumnya: mulai Android 17 volume
+        // dari latar belakang hanya boleh diubah oleh servis yang sudah di
+        // latar depan (dan, untuk targetSdk 37, memegang izin alarm tepat
+        // dengan aliran USAGE_ALARM). Sebelum itu panggilannya diabaikan.
+        naikkanVolume();
+
         // onStartCommand bisa dipanggil lagi selagi servisnya masih hidup,
         // jadi tugas lama dibuang dulu — kalau tidak, sisa tugas dari
         // panggilan sebelumnya akan memutus nada yang baru saja dimulai.
         penjadwal.removeCallbacksAndMessages(null);
         boolean subuh = nama.equals("subuh");
-        long durasi = nada.mulai(subuh ? 1 : NadaT3.TANPA_BATAS);
+        // Tanpa notifikasi yang tampil (izinnya ditolak atau salurannya
+        // dimatikan) tidak ada tombol Matikan dan layar penuhnya pun tidak
+        // muncul, jadi nada tanpa batas cuma bisa dihentikan dengan paksa-
+        // berhenti. Di situ nadanya dibatasi.
+        boolean bisaDimatikan = Izin.notifikasiTampil(this, channelId + nama);
+        long durasi = nada.mulai(subuh ? 1 : bisaDimatikan ? NadaT3.TANPA_BATAS : PUTARAN_TANPA_NOTIFIKASI);
 
         if (subuh) {
             // Satu putaran T3 sebagai pembuka, lalu tarhim; durasi > 0 karena
@@ -224,61 +257,43 @@ public class Servis10Menit extends Service {
             // "Matikan", jadi sengaja tidak ada apa pun yang dijadwalkan.
             // Jadwalnya dihitung ulang sekarang juga supaya rantai alarmnya
             // sudah terpasang walaupun servisnya nanti mati mendadak.
-            segarkanJadwal(false);
+            Util.segarkanJadwal(this, true, fromBooting);
+            if (durasi > 0) {
+                // nadanya dibatasi karena notifikasinya tidak tampil, lihat di atas
+                penjadwal.postDelayed(this::panggil10Menit, durasi + MARGIN_HABIS);
+            }
         }
 
         return START_NOT_STICKY;
     }
 
+    /**
+     * Menutup servis. Jadwal berikutnya dihitung ulang di onDestroy, yang
+     * dilewati semua jalan keluar.
+     */
     private void panggil10Menit() {
-        segarkanJadwal(true);
+        pulihkanVolume();
+        stopSelf();
+    }
+
+    private void naikkanVolume() {
+        // dipanggil lagi kalau onStartCommand datang dua kali: yang diingat
+        // tetap volume sebelum alarm, bukan volume maksimum yang baru dipasang
+        if (!volumeDinaikkan) {
+            volumeSebelumnya = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
+            volumeDinaikkan = true;
+        }
+        audioManager.setStreamVolume(AudioManager.STREAM_ALARM,
+                audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0);
     }
 
     /**
-     * Menyegarkan lokasi lalu menghitung ulang jadwal.
-     * <p>
-     * Sengaja getLastKnownLocation, bukan meminta fix GPS baru. Jadwal salat
-     * nyaris tidak peka terhadap posisi: digeser 1 km ke arah mana pun,
-     * ketujuh waktunya tidak berubah satu detik pun; 10 km baru menggeser satu
-     * slot satu menit. Bandingkan dengan ihtiyati yang 2 menit. Menunggu fix
-     * GPS sungguhan berarti menahan servis tanpa batas waktu demi ketelitian
-     * yang tidak pernah terlihat, jadi ini selesai seketika dan tidak bisa
-     * menggantung.
-     *
-     * @param tutup {@code true}: servisnya berhenti sesudah jadwalnya dihitung
-     *              ulang — penutupan sesudah tarhim subuh. {@code false}: cuma
-     *              menyegarkan, nadanya terus berbunyi.
+     * Harus dipanggil selagi servisnya masih di latar depan, lihat {@link #matikan}.
      */
-    private void segarkanJadwal(boolean tutup) {
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Siaran10Menit::onStartCommand");
-
-        SharedPreferences sharedPref = getSharedPreferences("pref", Context.MODE_PRIVATE);
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        Location lokasi = Util.lokasiTerakhir(sharedPref);
-        try {
-            wakeLock.acquire(600000);
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                Location smntra = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (smntra == null) {
-                    smntra = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                }
-                if (smntra != null) {
-                    lokasi = smntra;
-                    Util.simpanLokasi(sharedPref, lokasi);
-                }
-            }
-            Util.cekJadwal(this, lokasi, fromBooting);
-        } finally {
-            if (wakeLock.isHeld()) {
-                wakeLock.release();
-            }
-            if (tutup) {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, currentVolume, 0);
-                stopSelf();
-            }
+    private void pulihkanVolume() {
+        if (volumeDinaikkan) {
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, volumeSebelumnya, 0);
+            volumeDinaikkan = false;
         }
     }
 
@@ -297,33 +312,7 @@ public class Servis10Menit extends Service {
                 && (!exoPlayer.getPlayWhenReady()
                 || exoPlayer.getMediaItemCount() == 0
                 || exoPlayer.getPlaybackState() == Player.STATE_ENDED)) {
-            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Servis10Menit::onTaskRemoved");
-
-            SharedPreferences sharedPref = getSharedPreferences("pref", Context.MODE_PRIVATE);
-            Location lokasi = Util.lokasiTerakhir(sharedPref);
-            try {
-                wakeLock.acquire(600000);
-                LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-                        && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    Location smntra = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                    if (smntra != null) {
-                        lokasi = smntra;
-                    }
-                    if (smntra == null) {
-                        lokasi = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                    }
-                    Util.simpanLokasi(sharedPref, Objects.requireNonNull(lokasi));
-                }
-                Util.cekJadwal(getApplicationContext(), lokasi, fromBooting);
-            } finally {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, currentVolume, 0);
-                if (wakeLock.isHeld()) {
-                    wakeLock.release();
-                }
-                stopSelf();
-            }
+            panggil10Menit();
         }
     }
 
@@ -335,33 +324,11 @@ public class Servis10Menit extends Service {
             nada = null;
         }
 
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Servis10Menit::onTaskRemoved");
-
-        SharedPreferences sharedPref = getSharedPreferences("pref", Context.MODE_PRIVATE);
-        Location lokasi = Util.lokasiTerakhir(sharedPref);
-        try {
-            wakeLock.acquire(600000);
-            LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                Location smntra = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (smntra != null) {
-                    lokasi = smntra;
-                }
-                if (smntra == null) {
-                    lokasi = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                }
-                Util.simpanLokasi(sharedPref, Objects.requireNonNull(lokasi));
-            }
-            Util.cekJadwal(getApplicationContext(), lokasi, fromBooting);
-        } finally {
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, currentVolume, 0);
-            if (wakeLock.isHeld()) {
-                wakeLock.release();
-            }
-            stopSelf();
-        }
+        // Jalan terakhir. Biasanya volumenya sudah dikembalikan sebelum ini;
+        // kalau belum (servisnya dihentikan sistem), di Android 17 panggilan
+        // ini bisa diabaikan karena servisnya sudah turun dari latar depan.
+        pulihkanVolume();
+        Util.segarkanJadwal(this, true, fromBooting);
         if (mediaSession != null) {
             exoPlayer.release();
             mediaSession.release();

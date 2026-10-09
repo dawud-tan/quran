@@ -1,38 +1,28 @@
 package com.quran.kiblat.salat;
 
+import android.app.AlarmManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-import androidx.work.BackoffPolicy;
-import androidx.work.Data;
-import androidx.work.ExistingWorkPolicy;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.OutOfQuotaPolicy;
-import androidx.work.WorkManager;
-
-import java.util.concurrent.TimeUnit;
-
+/**
+ * Memasang ulang alarm sesudah ponsel dinyalakan, dan begitu pengguna
+ * memberi izin alarm tepat waktu — tanpa harus membuka aplikasinya dulu.
+ * <p>
+ * Dikerjakan langsung di sini: lokasinya cuma dibaca dari tembolok dan
+ * setAlarmClock dipanggil sebelum alamatnya dicari, jadi tidak ada yang perlu
+ * ditunda ke WorkManager.
+ */
 public class SiaranSehabisNyala extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent != null && intent.getAction() != null && intent.getAction().equalsIgnoreCase(Intent.ACTION_BOOT_COMPLETED)) {
-
-            Data.Builder builder = new Data.Builder();
-            builder.putBoolean("fromBooting", true);
-            OneTimeWorkRequest workRequest =
-                    new OneTimeWorkRequest.Builder(LocationWorker.class)
-                            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                            .setBackoffCriteria(
-                                    BackoffPolicy.LINEAR,
-                                    OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
-                                    TimeUnit.MILLISECONDS)
-                            .setInputData(builder.build())
-                            .build();
-
-            WorkManager.getInstance(context)
-                    .enqueueUniqueWork("LocationWork", ExistingWorkPolicy.REPLACE, workRequest);
+        String aksi = intent == null ? null : intent.getAction();
+        if (Intent.ACTION_BOOT_COMPLETED.equals(aksi)) {
+            Util.segarkanJadwal(context, true, true);
+        } else if (AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.equals(aksi)
+                && Izin.alarmTepat(context)) {
+            Util.segarkanJadwal(context, true, false);
         }
     }
 }

@@ -6,8 +6,16 @@
     <uses-permission
         android:name="android.permission.WAKE_LOCK"
         tools:node="replace" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS sengaja tidak ada. setAlarmClock membuat sistem
+         keluar dari Doze sebelum alarmnya berbunyi, jadi fungsi inti aplikasi tidak terganggu
+         Doze, dan Google Play melarang meminta pengecualian langsung dalam keadaan itu. Pengguna
+         yang ponselnya menutup paksa aplikasi diarahkan ke setelan baterai lewat Izin Aplikasi,
+         yang tidak membutuhkan izin ini. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Hanya untuk sakelar "lokasi di latar belakang" di Izin Aplikasi, mati kecuali dinyalakan
+         pengguna. Butuh formulir deklarasi + video di Play Console. Menghapus baris ini saja
+         sudah membuat build tanpa fitur itu: sakelarnya ikut hilang, jadwal memakai lokasi
+         saat aplikasi dibuka. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -16,7 +24,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
@@ -76,13 +83,13 @@
             android:name=".Servis10Menit"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location|mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback" />
 
         <service
             android:name=".ServisAdzan"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location|mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback" />
 
         <receiver
             android:name=".SiaranNotifikasiAdzan"
@@ -103,6 +110,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
 

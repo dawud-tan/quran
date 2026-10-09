@@ -1,21 +1,13 @@
 package com.quran.kiblat.salat;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
-import android.app.AlarmManager;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.location.Location;
-import android.location.LocationManager;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.provider.Settings;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
@@ -24,11 +16,8 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
@@ -40,6 +29,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 import com.quran.kiblat.salat.databinding.AktivitasUtamaBinding;
@@ -50,6 +40,8 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.text.NumberFormat;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -59,6 +51,10 @@ public class AktivitasUtama extends AppCompatActivity implements NavigationView.
     private AktivitasUtamaBinding binding;
     private NumberFormat numberFormat;
     private SharedPreferences sharedPref;
+    // didaftarkan tanpa syarat, supaya hasilnya tetap sampai walaupun aktivitasnya
+    // dibuat ulang selagi dialog izin sistem terbuka
+    private final ActivityResultLauncher<String[]> mintaIzinAwal = registerForActivityResult(
+            new ActivityResultContracts.RequestMultiplePermissions(), hasil -> sesudahIzinAwal());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,7 +66,6 @@ public class AktivitasUtama extends AppCompatActivity implements NavigationView.
         setSupportActionBar(binding.toolbar);
 
         DrawerLayout drawer = binding.drawerLayout;
-        CoordinatorLayout koordinator = binding.koordinator;
         ViewCompat.setOnApplyWindowInsetsListener(binding.bagianIsiUtama, (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
             ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
@@ -169,196 +164,98 @@ public class AktivitasUtama extends AppCompatActivity implements NavigationView.
             startActivity(mapIntent);
         });
 
-        LocationManager lm = gpsHidup();
-
-        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        ActivityResultLauncher<String> activityResultBgLocPerm =
-                registerForActivityResult(new ActivityResultContracts.RequestPermission(), result -> mulaiJadwal(lm));
-        NotificationManager managerCompat = getSystemService(NotificationManager.class);
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {//api 34 ke atas
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || !alarmManager.canScheduleExactAlarms()
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    || !managerCompat.canUseFullScreenIntent()
-                    || !powerManager.isIgnoringBatteryOptimizations(getPackageName())
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                ActivityResultLauncher<String[]> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), results -> {
-                    if (!alarmManager.canScheduleExactAlarms()) {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (!managerCompat.canUseFullScreenIntent()) {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (!powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        mintaLokasiBG(koordinator, activityResultBgLocPerm);
-                    }
-                });
-
-                activityResultLauncher.launch(new String[]{
-                        Manifest.permission.POST_NOTIFICATIONS,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                });
-            } else {
-                mulaiJadwal(lm);
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {//api 33 ke atas
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || !alarmManager.canScheduleExactAlarms()
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    || !powerManager.isIgnoringBatteryOptimizations(getPackageName())
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityResultLauncher<String[]> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), results -> {
-
-                    if (!alarmManager.canScheduleExactAlarms()) {
-                        Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (!powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        mintaLokasiBG(koordinator, activityResultBgLocPerm);
-                    }
-                });
-
-                activityResultLauncher.launch(new String[]{
-                        Manifest.permission.POST_NOTIFICATIONS,
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                });
-            } else {
-                mulaiJadwal(lm);
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { //api 31 ke atas
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || !alarmManager.canScheduleExactAlarms()
-                    || !powerManager.isIgnoringBatteryOptimizations(getPackageName())
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityResultLauncher<String[]> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), results -> {
-                    if (!powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        mintaLokasiBG(koordinator, activityResultBgLocPerm);
-                    }
-                });
-
-                activityResultLauncher.launch(new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                });
-            } else {
-                mulaiJadwal(lm);
-            }
-        } else { //dari Red Velvet ke bawah
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || !powerManager.isIgnoringBatteryOptimizations(getPackageName())
-                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityResultLauncher<String[]> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), results -> {
-                    if (!powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
-                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        startActivity(intent);
-                    }
-
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        mintaLokasiBG(koordinator, activityResultBgLocPerm);
-                    }
-                });
-
-                activityResultLauncher.launch(new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                });
-            } else {
-                mulaiJadwal(lm);
-            }
-        }
-
         setVolumeControlStream(AudioManager.STREAM_ALARM);
-    }
 
-    private void mintaLokasiBG(CoordinatorLayout koordinator, ActivityResultLauncher<String> activityResultBgLocPerm) {
-        Snackbar.make(koordinator, "Selalu izinkan akses lokasi, agar waktu adzan tepat lokasi", Snackbar.LENGTH_INDEFINITE).setTextMaxLines(2).setAction(
-                "Buka Pengaturan", v -> activityResultBgLocPerm.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)).show();
-    }
-
-    private void mulaiJadwal(LocationManager locationManager) {
-        Location lokasi = Util.lokasiTerakhir(sharedPref);
-
-        Location smntra = lokasiTerakhirDari(locationManager, LocationManager.GPS_PROVIDER);
-        if (smntra == null) {
-            smntra = lokasiTerakhirDari(locationManager, LocationManager.NETWORK_PROVIDER);
-        }
-        //kalau dua-duanya kosong (mis. baru dipasang, GPS belum pernah dapat sinyal)
-        //dipakai lokasi simpanan, jangan sampai null-nya diteruskan dan bikin mogok
-        if (smntra != null) {
-            lokasi = smntra;
-            Util.simpanLokasi(sharedPref, lokasi);
-        }
-
-        Util.cekJadwal(this, lokasi, false);
-    }
-
-    @SuppressLint("MissingPermission")
-    private Location lokasiTerakhirDari(LocationManager locationManager, String penyedia) {
-        try {
-            return locationManager.isProviderEnabled(penyedia) ?
-                    locationManager.getLastKnownLocation(penyedia) : null;
-        } catch (Exception ex) {
-            return null; //penyedia tidak ada di perangkat ini
+        // Hanya waktu aplikasi dibuka dari awal; memutar layar tidak perlu
+        // bertanya lagi atau menghitung ulang jadwal.
+        if (savedInstanceState == null) {
+            mulai();
         }
     }
 
-    private LocationManager gpsHidup() {
-        LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        boolean gps_enabled = false;
-
-        try {
-            gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
-        } catch (Exception ex) {
+    /**
+     * Izin tidak lagi ditanyakan setiap kali aplikasi dibuka. Penjelasannya
+     * muncul sekali saja, dan hanya untuk izin yang memang belum ada; sesudah
+     * itu semuanya ada di menu Izin Aplikasi. Yang diingatkan lagi di sini
+     * cuma keadaan yang membuat adzan sama sekali tidak berbunyi.
+     */
+    private void mulai() {
+        if (!Izin.perluTanyaAwal(this)) {
+            Util.segarkanJadwal(this, false, false);
+            ingatkanAlarmTepat();
+            return;
         }
 
-        if (!gps_enabled) {
-            new AlertDialog.Builder(this)
-                    .setMessage("GPS tidak aktif")
-                    .setPositiveButton("Buka Pengaturan Lokasi", (paramDialogInterface, paramInt) -> startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)))
-                    .setNegativeButton("Batal", (dialog, which) -> {
-
-                    })
-                    .show();
+        String[] izin = Izin.izinAwal(this);
+        boolean alarm = Izin.alarmTepat(this);
+        if (izin.length == 0 && alarm) {
+            // pemasangan lama yang izinnya sudah lengkap: tidak ada yang perlu dijelaskan
+            Izin.tandaiSudahTanya(this);
+            Util.segarkanJadwal(this, false, false);
+            return;
         }
-        return lm;
+
+        List<String> kurang = Arrays.asList(izin);
+        StringBuilder isi = new StringBuilder("Supaya adzan berbunyi tepat waktu dan sesuai tempat Anda, aplikasi ini memerlukan:\n");
+        if (kurang.contains(Manifest.permission.POST_NOTIFICATIONS)) {
+            isi.append("\n\u2022 Notifikasi \u2014 menampilkan adzan beserta tombol Matikan.");
+        }
+        if (kurang.contains(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            isi.append("\n\u2022 Lokasi saat aplikasi dipakai \u2014 menghitung jadwal salat dan arah kiblat. ")
+                    .append("Pilih lokasi tepat: lokasi perkiraan tidak membawa ketinggian.");
+        }
+        if (!alarm) {
+            isi.append("\n\u2022 Alarm & pengingat \u2014 membunyikan adzan tepat pada waktunya. ")
+                    .append("Izin ini diberikan lewat layar setelan, dari daftar sesudah ini.");
+        }
+        isi.append("\n\nLokasi di latar belakang tidak diminta. Semua izin bisa dilihat dan diubah ")
+                .append("kapan saja lewat menu Izin Aplikasi.");
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Izin untuk Adzan")
+                .setMessage(isi)
+                .setCancelable(false)
+                .setPositiveButton("Lanjut", (d, w) -> {
+                    Izin.tandaiSudahTanya(this);
+                    if (izin.length > 0) {
+                        mintaIzinAwal.launch(izin);
+                    } else {
+                        sesudahIzinAwal();
+                    }
+                })
+                .setNegativeButton("Nanti", (d, w) -> {
+                    Izin.tandaiSudahTanya(this);
+                    Util.segarkanJadwal(this, false, false);
+                })
+                .show();
+    }
+
+    private void sesudahIzinAwal() {
+        Util.segarkanJadwal(this, false, false);
+        // Alarm tepat waktu dan layar penuh tidak bisa diminta lewat dialog, hanya lewat
+        // layar setelan. Dulu ketiga layar setelan dibuka bertumpuk sekaligus; sekarang
+        // daftar izinnya yang menjelaskan masing-masing dan membawa ke sana satu per satu.
+        if (!Izin.alarmTepat(this) || !Izin.layarPenuh(this)) {
+            bukaIzinAplikasi();
+        }
+    }
+
+    // satu-satunya pengingat yang muncul lagi: adzan yang dinyalakan tapi tidak bisa dijadwalkan
+    private void ingatkanAlarmTepat() {
+        if (Izin.alarmTepat(this) || !Util.adaAdzanAktif(sharedPref)) {
+            return;
+        }
+        Snackbar.make(binding.koordinator, "Adzan tidak akan berbunyi: izin Alarm & pengingat belum diberikan.",
+                        Snackbar.LENGTH_INDEFINITE)
+                .setTextMaxLines(3)
+                .setAction("Atur", v -> bukaIzinAplikasi())
+                .show();
+    }
+
+    private void bukaIzinAplikasi() {
+        if (getSupportFragmentManager().findFragmentByTag(PengaturanIzin.TAG) == null) {
+            new PengaturanIzin().show(getSupportFragmentManager(), PengaturanIzin.TAG);
+        }
     }
 
     @Override
@@ -426,6 +323,11 @@ public class AktivitasUtama extends AppCompatActivity implements NavigationView.
 
         if (R.id.pengaturan_adzan == id) {
             new PengaturanAdzan().show(getSupportFragmentManager(), PengaturanAdzan.TAG);
+            return true;
+        }
+
+        if (R.id.izin_aplikasi == id) {
+            bukaIzinAplikasi();
             return true;
         }
 

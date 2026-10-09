@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?><!-- Satu baris di Izin Aplikasi: nama izin dan keadaannya, apa yang berubah kalau
+     ditolak beserta gantinya, lalu satu tombol atau satu sakelar. Semua teksnya
+     diisi dari PengaturanIzin, jadi baris ini dipakai ulang untuk setiap izin. -->
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/judul"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="?attr/textAppearanceSubtitle2"
+            android:textColor="?android:textColorPrimary" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textStyle="bold" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/keterangan"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textAppearance="?attr/textAppearanceCaption"
+        android:textColor="?android:textColorSecondary" />
+
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/sakelar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/tombol"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:visibility="gone" />
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" />
+</androidx.appcompat.widget.LinearLayoutCompat>

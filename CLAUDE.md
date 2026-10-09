@@ -29,8 +29,10 @@ Everything is offline except one reverse-geocode call for the notification subti
 - Always use the wrapper. The SDK path comes from `local.properties` (not in VCS).
 - **There is no test suite** — only `app/src/main` exists. Never report tests as passing.
 - Lint has a large pre-existing warning backlog (HardcodedText, UnusedResources,
-  IconDuplicates, BatteryLife). Zero errors and 120 warnings today; report only *new* findings.
-  Lint does not look at C++ at all.
+  IconDuplicates, SetTextI18n). Zero errors and 123 warnings today; report only *new* findings.
+  The `GradleDependency` "newer version available" notices drift as libraries release, so the
+  count can move without any code change — diff the SARIF against a lint of `HEAD` rather than
+  trusting the number. Lint does not look at C++ at all.
 - The native build needs `android.buildFeatures.prefab = true` — Oboe ships as a prefab package
   inside its AAR. Without it CMake fails at `find_package(oboe REQUIRED CONFIG)` with
   "Could not find a package configuration file provided by oboe". That flag is the fix; nothing
@@ -105,20 +107,36 @@ Util.cekJadwal(context, lokasi, fromBooting)
   ├─ >10 min away → setAlarmClock ─► SiaranSepuluhMenitLalu ─► Servis10Menit  (T3 tone / tarhim)
   └─ ≤10 min away → setAlarmClock ─► SiaranNotifikasiAdzan  ─► ServisAdzan    (adzan)
                                             │
-        each service, when playback ends / is dismissed / destroyed, calls cekJadwal again
-        (ServisAdzan goes through LocationWorker to refresh the fix first)
+        every way out of either service ends in onDestroy, which calls
+        Util.segarkanJadwal(this, dariLatar = true, …) → cekJadwal again
 ```
 
-- Both services are foreground services (`location|mediaPlayback`) with a full-screen intent
-  into `RingActivity`, `setBypassDnd(true)`, and the alarm audio stream forced to max volume
-  (`Servis10Menit` restores the previous volume afterwards).
+- Both services are foreground services of type **`mediaPlayback` only**, with a full-screen
+  intent into `RingActivity`, `setBypassDnd(true)`, and (in `Servis10Menit`) the alarm audio
+  stream forced to max volume and restored afterwards.
+- **Do not add `location` back to the service type.** Since Android 14 a `location`-type
+  foreground service cannot be *started from the background* without
+  `ACCESS_BACKGROUND_LOCATION`, and these services are only ever started from an alarm — so it
+  threw `SecurityException` at adzan time for everyone who didn't pick "Allow all the time".
+  The location read is `getLastKnownLocation`, which needs no service type at all.
+- **Android 17 background-audio rule** (all apps; stricter at targetSdk 37): playback and
+  `setStreamVolume` from a non-visible app are *silently ignored* unless a non-short foreground
+  service is running, and at targetSdk 37 it must also have while-in-use capability — waived
+  only for `USAGE_ALARM` streams **when the exact-alarm permission is granted**. Two
+  consequences in the code: volume is raised and ExoPlayer is prepared only *after*
+  `startForeground`, and the volume is restored *before* the service leaves the foreground —
+  in `onDestroy` it is already too late and the alarm volume would stay at max.
 - **The non-subuh tone rings until the user stops it**, not for a fixed 3 minutes. Three ways
-  out, all landing on `stopService` → `onDestroy`: the full-screen `RingActivity` button, the
-  notification's "Matikan" action, and swiping the notification. Because nothing else ends it,
-  `Servis10Menit` re-derives the schedule **when the tone starts** (`segarkanJadwal(false)`,
-  called after `startForeground` — location needs the foreground-service transition first)
-  rather than when it stops, so the chain is already armed even if the service is killed.
-- Subuh is the one bounded case: one cycle of tone, then the tarhim through ExoPlayer, then
+  out — the full-screen `RingActivity` button, the notification's "Matikan" action, and swiping
+  the notification — all go through `Servis10Menit.matikan()`, which sends `AKSI_MATIKAN` *to the
+  service* rather than calling `stopService`, so the volume is restored while it is still in
+  the foreground (see the Android 17 rule above). Because nothing else ends it, `Servis10Menit`
+  re-derives the schedule **when the tone starts** as well as in `onDestroy`, so the chain is
+  already armed even if the service is killed.
+- The one exception to "rings until stopped": if the notification cannot show
+  (`Izin.notifikasiTampil` false — permission denied or channel blocked) there is no Matikan
+  button and no full-screen intent either, so the tone is bounded to 45 cycles (3 min).
+- Subuh is the other bounded case: one cycle of tone, then the tarhim through ExoPlayer, then
   `panggil10Menit()` when it ends. That last step used to be missing — both branches of the old
   listener excluded subuh, so the service hung until something else destroyed it.
 - `ServisAdzan` still plays its audio through ExoPlayer. `Servis10Menit` does **not**: its T3
@@ -127,7 +145,11 @@ Util.cekJadwal(context, lokasi, fromBooting)
   `nada.sedangMain()` too — `onTaskRemoved` does, and would otherwise kill a ringing alarm the
   moment the app is swiped from recents, because an empty ExoPlayer reports `getMediaItemCount()
   == 0`.
-- `SiaranSehabisNyala` re-arms everything after `BOOT_COMPLETED` via `LocationWorker`.
+- `SiaranSehabisNyala` re-arms inline after `BOOT_COMPLETED`, and also on
+  `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED`, so granting exact alarms in system settings
+  arms the adzan without reopening the app. There is no WorkManager any more: the refresh is a
+  cached-location read plus `cekJadwal`, which finishes immediately, and the old expedited
+  `LocationWorker` had no `getForegroundInfo()`, which crashes on Android 10–11.
 - The two `PendingIntent`s both use request code 1 but differ by component, so they are
   distinct. `cekJadwal` sets one and explicitly cancels the other — keep that invariant, or
   a stale alarm from a prayer the user just muted will still fire.
@@ -184,13 +206,15 @@ NadaT3.java ──JNI──► NadaT3 (nada_t3.cpp)  ── Oboe stream, Usage::
 
 | key | meaning |
 | --- | --- |
-| `latitude` / `longitude` / `altitude` / `accuracy` | last known fix, stored as strings; altitude is MSL |
+| `latitude` / `longitude` / `altitude` / `accuracy` | last known fix, stored as strings; altitude is MSL. A fix with no altitude (network provider, or "approximate" location) keeps the previous altitude — unknown is not zero, and zero moves Bandung's maghrib 4 min early |
 | `alamat` | last resolved reverse-geocode string, used so alarms never wait on the network |
 | `adzan_subuh` … `adzan_isya` | per-prayer on/off, **default true** so existing installs are unchanged |
 | `ihtiyati` | safety minutes added to the five prayers, 0–10, default 2 |
 | `bayangan_ashar` | Asr shadow factor, 1 (default) or 2 |
 | `mode`, `suratke`, `juzke`, `judul`, `bindingAdapterPosition` | last reading position |
 | `sudah_baca_kompas` | the compass-accuracy dialog has been shown once; see below |
+| `lokasi_latar` | user's choice for background location. **Absent = follow the existing grant**, so old installs that already allowed "all the time" keep working; read only through `Izin.lokasiLatarAktif` |
+| `sudah_tanya_izin` | the one-time permission explanation has been shown |
 
 `Util.adzanAktif` / `ihtiyati` / `bayanganAshar` / `simpanSetelanAdzan` / `jumlahAdzan` /
 `namaAdzan` are the only supported way to read or write these; `PengaturanAdzan` (options menu →
@@ -271,10 +295,37 @@ because a scroll view gives its child an unbounded height.
 
 ## Permissions
 
-The app asks for a lot and branches on API level in `AktivitasUtama.onCreate`:
-fine + coarse + background location, notifications, exact alarms, full-screen intent, and
-battery-optimisation exemption. Foreground-service types must stay in sync with
-`ServiceCompat.startForeground(...)` in both services or Android 14+ throws at runtime.
+`Izin.java` is the only place that answers "is this allowed?", and the only route to each
+settings screen. `PengaturanIzin` (options menu → "Izin Aplikasi") shows every permission with
+its state, what changes if it is denied, the fallback, and a button. Nothing is re-asked on
+cold start: `AktivitasUtama.mulai()` explains the missing ones **once** (`sudah_tanya_izin`),
+and afterwards the only reminder is a Snackbar when adzan is enabled but exact alarms are
+denied — i.e. nothing would ring at all.
+
+| permission | status | if denied |
+| --- | --- | --- |
+| `SCHEDULE_EXACT_ALARM` | required; settings screen only | nothing is scheduled. Also gates the Android 17 `USAGE_ALARM` audio waiver |
+| `POST_NOTIFICATIONS` | asked once | adzan still sounds; the 10-min tone is bounded to 3 min (no Matikan) |
+| `USE_FULL_SCREEN_INTENT` | settings screen only (Play auto-grants declared alarm apps) | plain heads-up notification |
+| fine/coarse location | asked once | last saved location, or the centre of Indonesia (37–52 min off for Jakarta) |
+| `ACCESS_BACKGROUND_LOCATION` | **opt-in switch**, off by default, with Play's prominent disclosure | schedule uses the location from the last time the app was opened |
+| battery optimisation | **never requested** | — |
+
+- **`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is deliberately gone.** `setAlarmClock` makes the
+  system leave Doze before the alarm fires, starting a foreground service from an exact alarm
+  is already exempt from background-start limits, and the location read never turns on a
+  radio. So Doze does not impair the core function, and Play forbids asking for the exemption
+  in that case. Users on aggressive OEMs are pointed at App info → Battery instead, which needs
+  no permission. Don't add it back.
+- Background location is the one Play-declared permission left (declaration form + video).
+  Deleting its `<uses-permission>` line is enough to ship without it:
+  `Izin.lokasiLatarTersedia` reads the manifest and the switch disappears.
+- Location reads go through `Izin.lokasiTerkini(context, dariLatar)`: `dariLatar = true` from
+  services/receivers (requires the switch), `false` from screens (foreground permission is
+  enough). The three compass fragments used to call `getLastKnownLocation` unguarded and threw
+  `SecurityException` with location denied.
+- Unused-app hibernation (Android 12+) resets permissions **and stops alarms**, and a ringing
+  adzan does not count as usage. `PengaturanIzin` shows that state too.
 
 ## Known rough edges
 
@@ -291,7 +342,7 @@ battery-optimisation exemption. Foreground-service types must stay in sync with
   even though the session has nothing playing. Reviving a real pause button would mean wrapping
   `NadaT3` in a `SimpleBasePlayer` and swapping it into the session — possible, but it buys a
   control with the wrong semantics.
-- `segarkanJadwal` deliberately uses `getLastKnownLocation`, never a fresh GPS fix. Prayer times
+- `Izin.lokasiTerkini` deliberately uses `getLastKnownLocation`, never a fresh GPS fix. Prayer times
   barely depend on position: shifting 1 km in any direction moves **none** of the seven times by
   a single second, and 10 km moves one slot by one minute — against a default ihtiyati of two
   minutes and a schedule displayed to the minute. The old code waited on a real fix with no

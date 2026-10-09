@@ -37,7 +37,7 @@ public class RingActivity extends AppCompatActivity {
 
         binding.activityRingDismiss.setOnClickListener(v -> {
             if (kelas.equals("Servis10Menit")) {
-                stopService(new Intent(this, Servis10Menit.class));
+                Servis10Menit.matikan(this);
             } else {
                 stopService(new Intent(this, ServisAdzan.class));
             }

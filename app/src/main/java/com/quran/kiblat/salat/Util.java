@@ -13,6 +13,7 @@ import android.location.Location;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 
 import androidx.annotation.NonNull;
@@ -101,6 +102,16 @@ public class Util {
     // baru dipasang = semua waktu menyala, sama seperti perilaku sebelum ada setelan ini
     public static boolean adzanAktif(SharedPreferences sharedPref, int urutan) {
         return sharedPref.getBoolean("adzan_" + NAMA_ADZAN[urutan], true);
+    }
+
+    // false kalau semua waktu dimatikan, artinya memang tidak ada alarm yang perlu dipasang
+    public static boolean adaAdzanAktif(SharedPreferences sharedPref) {
+        for (int i = 0; i < NAMA_ADZAN.length; i++) {
+            if (adzanAktif(sharedPref, i)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static int ihtiyatiMaks() {
@@ -239,6 +250,41 @@ public class Util {
         prayers.tune(new int[]{menit, 0, menit, menit, 0, menit, menit});
         prayers.setAsrFactor(bayanganAshar(sharedPref));
         return prayers;
+    }
+
+    /**
+     * Menyegarkan lokasi kalau boleh, lalu memasang ulang alarm berikutnya.
+     * <p>
+     * Satu-satunya jalan yang dipakai layar utama, kedua servis, dan penerima
+     * siaran boot. Selesai seketika: lokasinya cuma dibaca dari tembolok
+     * ({@link Izin#lokasiTerkini}), jadi tidak perlu WorkManager, tidak perlu
+     * menunggu fix, dan tidak perlu keluar dari Doze — setAlarmClock sudah
+     * mengurus itu.
+     *
+     * @param dariLatar true kalau tidak ada layar yang terlihat. Lokasi lalu
+     *                  hanya dibaca kalau pengguna menyalakan lokasi latar;
+     *                  kalau tidak, dipakai lokasi tersimpan terakhir, yaitu
+     *                  lokasi saat aplikasi terakhir dibuka.
+     */
+    public static void segarkanJadwal(Context context, boolean dariLatar, boolean fromBooting) {
+        Context aplikasi = context.getApplicationContext();
+        SharedPreferences sharedPref = aplikasi.getSharedPreferences("pref", Context.MODE_PRIVATE);
+        PowerManager.WakeLock wakeLock = aplikasi.getSystemService(PowerManager.class)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "quran:segarkanJadwal");
+        try {
+            wakeLock.acquire(60000);
+            Location baru = Izin.lokasiTerkini(aplikasi, dariLatar);
+            if (baru != null) {
+                simpanLokasi(sharedPref, baru);
+            }
+            // dibaca balik dari simpanan, supaya ketinggian yang tidak dibawa fix
+            // jaringan/perkiraan sudah terisi (lihat simpanLokasi)
+            cekJadwal(aplikasi, lokasiTerakhir(sharedPref), fromBooting);
+        } finally {
+            if (wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        }
     }
 
     public static void cekJadwal(Context context, Location lokasiku, boolean fromBooting) {
@@ -511,9 +557,19 @@ public class Util {
         // GPS memberi tinggi terhadap elipsoid WGS84, sedangkan kerendahan ufuk butuh tinggi
         // terhadap permukaan laut. Selisihnya di Indonesia bisa puluhan meter, jadi yang
         // disimpan selalu versi MSL supaya sama dengan yang dipakai saat menghitung jadwal.
-        double ketinggian = LocationCompat.hasMslAltitude(lokasi)
-                ? LocationCompat.getMslAltitudeMeters(lokasi)
-                : lokasi.getAltitude();
+        //
+        // Fix jaringan dan lokasi perkiraan (izin lokasi kasar) tidak membawa ketinggian sama
+        // sekali. Tidak diketahui bukan berarti nol: di Bandung (768 m) menganggapnya nol
+        // memundurkan terbit 4 menit dan memajukan maghrib 4 menit, jadi ketinggian terakhir
+        // yang benar-benar terukur tetap dipakai.
+        double ketinggian;
+        if (LocationCompat.hasMslAltitude(lokasi)) {
+            ketinggian = LocationCompat.getMslAltitudeMeters(lokasi);
+        } else if (lokasi.hasAltitude()) {
+            ketinggian = lokasi.getAltitude();
+        } else {
+            ketinggian = Double.parseDouble(sharedPref.getString("altitude", "0"));
+        }
 
         SharedPreferences.Editor editor = sharedPref.edit();
         editor.putString("latitude", Double.toString(lokasi.getLatitude()));

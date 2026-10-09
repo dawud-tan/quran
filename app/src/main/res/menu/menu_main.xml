@@ -41,6 +41,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/izin_aplikasi"
+        android:orderInCategory="450"
+        android:title="Izin Aplikasi"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/ketepatan_kompas"
         android:orderInCategory="500"
         android:title="Ketepatan Kompas"

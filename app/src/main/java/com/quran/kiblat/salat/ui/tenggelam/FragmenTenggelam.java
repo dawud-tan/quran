@@ -30,6 +30,7 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.imageview.ShapeableImageView;
 import com.google.android.material.textview.MaterialTextView;
+import com.quran.kiblat.salat.Izin;
 import com.quran.kiblat.salat.Util;
 import com.quran.kiblat.salat.databinding.FragmenTenggelamBinding;
 import com.quran.kiblat.salat.ui.util.MedanMagnetBumi;
@@ -236,11 +237,15 @@ public class FragmenTenggelam extends Fragment {
 
         locationManager = (LocationManager) requireActivity().getSystemService(Context.LOCATION_SERVICE);
 
-        lokasiku = Util.lokasiTerakhir(sharedPref);
-        Location smntra = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        // Lewat Izin: dulu getLastKnownLocation dipanggil tanpa memeriksa izin, jadi
+        // layar ini mogok (SecurityException) kalau izin lokasi ditolak. Disimpan dulu
+        // lalu dibaca balik, supaya ketinggian yang tidak dibawa fix jaringan/perkiraan
+        // terisi dari simpanan, sama dengan yang dipakai jadwal yang dibunyikan.
+        Location smntra = Izin.lokasiTerkini(requireContext(), false);
         if (smntra != null) {
-            lokasiku = smntra;
+            Util.simpanLokasi(sharedPref, smntra);
         }
+        lokasiku = Util.lokasiTerakhir(sharedPref);
         binding.koordinat.setText(
                 Util.getLatitudeAsDMS(lokasiku, 9) + ", " + Util.getLongitudeAsDMS(lokasiku, 9)
         );
@@ -249,7 +254,6 @@ public class FragmenTenggelam extends Fragment {
             lokasiku.setAltitude(LocationCompat.getMslAltitudeMeters(lokasiku));
         }
         mdpl.setText(String.format(Locale.getDefault(), "%.2f meter", lokasiku.getAltitude()));
-        Util.simpanLokasi(sharedPref, lokasiku);
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
                 && Util.isAirplaneModeOff(requireContext())) {

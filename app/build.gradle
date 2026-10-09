@@ -81,6 +81,5 @@ dependencies {
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
     implementation libs.recyclerview
-    implementation libs.work.runtime
     implementation libs.oboe
 }

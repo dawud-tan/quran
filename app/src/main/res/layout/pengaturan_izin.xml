@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><!-- Izin Aplikasi: satu tempat untuk melihat dan mengubah setiap izin, pengganti
+     permintaan izin yang dulu muncul lagi setiap kali aplikasi dibuka. Barisnya
+     disembunyikan dari PengaturanIzin kalau tidak berlaku di versi Android ini. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="?attr/dialogPreferredPadding"
+        android:paddingTop="8dp"
+        android:paddingEnd="?attr/dialogPreferredPadding">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Setiap izin boleh ditolak. Keterangannya menjelaskan apa yang berubah kalau ditolak, dan apa yang dipakai sebagai gantinya."
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:textColorSecondary" />
+
+        <include
+            android:id="@+id/baris_alarm"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_notifikasi"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_layar_penuh"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_lokasi"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_lokasi_latar"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_jeda"
+            layout="@layout/baris_izin" />
+
+        <include
+            android:id="@+id/baris_baterai"
+            layout="@layout/baris_izin" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+</ScrollView>

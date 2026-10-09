@@ -7,6 +7,8 @@ import android.content.Intent;
 public class SiaranDismiss10Menit extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        context.stopService(new Intent(context, Servis10Menit.class));
+        // lewat servisnya, bukan stopService, supaya volume alarm sempat
+        // dikembalikan selagi servisnya masih di latar depan
+        Servis10Menit.matikan(context);
     }
 }
